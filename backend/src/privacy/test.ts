@@ -23,6 +23,7 @@ async function testNullifier() {
         // Test 2: Test the complete privacy manager flow
         console.log('\nTest 2: Privacy Manager Flow');
         const privacyManager = new PrivacyManager();
+        await privacyManager.initialize();
         const result = await privacyManager.generateSpendNote(walletAddress);
         
         console.log('Generated Spend Note:', {

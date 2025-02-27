@@ -15,6 +15,10 @@ export class PrivacyManager {
         this.merkleTree = new SpendNoteMerkleTree();
     }
     
+    public async initialize(): Promise<void> {
+        await this.merkleTree.initialize();
+    }
+    
     // Generate a new spend note for a wallet
     public async generateSpendNote(walletAddress: string): Promise<{
         spendNote: SpendNote;
@@ -33,7 +37,7 @@ export class PrivacyManager {
         };
         
         // Add to merkle tree
-        const leafHash = this.merkleTree.addSpendNote(spendNote);
+        const leafHash = await this.merkleTree.addSpendNote(spendNote);
         
         return {
             spendNote,

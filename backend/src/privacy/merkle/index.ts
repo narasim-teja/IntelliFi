@@ -2,19 +2,38 @@ import { MerkleTree } from 'merkletreejs';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import { MerkleLeaf, SpendNote } from '../types';
+import { MerkleTreeDB } from './db';
 
 export class SpendNoteMerkleTree {
     private tree: MerkleTree;
     private leaves: MerkleLeaf[] = [];
+    private db: MerkleTreeDB;
     
     constructor() {
         this.tree = new MerkleTree([], (data: Buffer) => {
             const hash = sha256(data);
             return Buffer.from(hash);
         }, {
-            hashLeaves: false, // We'll hash the leaves ourselves
+            hashLeaves: false,
             sortPairs: true,
         });
+        
+        this.db = new MerkleTreeDB();
+    }
+    
+    public async initialize(): Promise<void> {
+        await this.initializeFromDB();
+    }
+    
+    private async initializeFromDB(): Promise<void> {
+        // Load existing leaves from DB
+        this.leaves = await this.db.getAllSpendNotes();
+        
+        // Rebuild tree from leaves
+        for (const leaf of this.leaves) {
+            const leafData = SpendNoteMerkleTree.createLeafData(leaf.spendNote);
+            this.tree.addLeaf(leafData, false);
+        }
     }
     
     // Create leaf data from spend note
@@ -29,16 +48,22 @@ export class SpendNoteMerkleTree {
     }
     
     // Add a new spend note to the tree
-    public addSpendNote(spendNote: SpendNote): string {
+    public async addSpendNote(spendNote: SpendNote): Promise<string> {
         const leafData = SpendNoteMerkleTree.createLeafData(spendNote);
         const leafHash = '0x' + bytesToHex(sha256(leafData));
         
-        this.leaves.push({
+        const leaf: MerkleLeaf = {
             hash: leafHash,
             spendNote
-        });
+        };
         
-        this.tree.addLeaf(leafData, false); // Don't hash again
+        this.leaves.push(leaf);
+        this.tree.addLeaf(leafData, false);
+        
+        // Save to database
+        await this.db.saveSpendNote(leaf);
+        await this.db.saveMerkleRoot(this.getRoot());
+        
         return leafHash;
     }
     
@@ -75,5 +100,10 @@ export class SpendNoteMerkleTree {
     // Get all leaves
     public getLeaves(): MerkleLeaf[] {
         return this.leaves;
+    }
+    
+    // Cleanup database connection
+    public async disconnect(): Promise<void> {
+        await this.db.disconnect();
     }
 }

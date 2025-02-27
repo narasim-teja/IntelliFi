@@ -1,0 +1,31 @@
+// This is your Prisma schema file
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model SpendNote {
+  id            String   @id @default(uuid())
+  walletAddress String
+  nullifier     String
+  amount        String
+  timestamp     BigInt
+  leafHash      String   @unique
+  createdAt     DateTime @default(now())
+
+  @@index([walletAddress])
+  @@index([nullifier])
+}
+
+model MerkleRoot {
+  id        String   @id @default(uuid())
+  root      String
+  timestamp BigInt
+  createdAt DateTime @default(now())
+
+  @@index([root])
+} 
