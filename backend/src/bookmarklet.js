@@ -54,6 +54,46 @@ javascript: (function (s) {
       return null;
     }
   
+    // Add function to display verification results
+    function displayVerificationResult(result, imgElement) {
+      const resultDiv = document.createElement('div');
+      resultDiv.style.cssText = `
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px;
+        font-size: 12px;
+        border-radius: 0 0 4px 4px;
+        z-index: 1000;
+      `;
+
+      if (result.isFaceRegistered && result.matchingAddress) {
+        resultDiv.innerHTML = `
+          <div style="color: #4ade80;">✓ Face Matched!</div>
+          <div style="font-size: 10px;">Address: ${result.matchingAddress}</div>
+          <div style="font-size: 10px;">Similarity: ${(result.similarity * 100).toFixed(2)}%</div>
+        `;
+      } else {
+        resultDiv.innerHTML = `
+          <div style="color: #f87171;">✗ No Match Found</div>
+          <div style="font-size: 10px;">Best Similarity: ${(result.similarity * 100).toFixed(2)}%</div>
+        `;
+      }
+
+      // Position the result div relative to the image
+      const imgContainer = imgElement.parentElement;
+      imgContainer.style.position = 'relative';
+      imgContainer.appendChild(resultDiv);
+
+      // Remove the result after 5 seconds
+      setTimeout(() => {
+        resultDiv.remove();
+      }, 5000);
+    }
+  
     function initializeObserver() {
       const container = findMessagesContainer();
       if (!container) {
@@ -86,17 +126,30 @@ javascript: (function (s) {
                         continue;
                       }
   
-                      const res = await fetch("http://localhost:3103/api/vision", {
+                      // First save the image
+                      const saveRes = await fetch("http://localhost:3103/api/vision", {
                         method: "POST",
                         body: JSON.stringify({ imageUrl: downloadableUrl }),
                         headers: {
                           "Content-Type": "application/json",
                         },
                       });
-                      const data = await res.json();
-                      console.log("Vision API Response:", data);
-                      console.log("Image saved locally at:", data.savedImagePath);
-                      console.log("Image description:", data.content);
+                      const saveData = await saveRes.json();
+                      console.log("Image saved locally at:", saveData.savedImagePath);
+
+                      // Then verify the face
+                      const verifyRes = await fetch("http://localhost:3103/api/verify-face", {
+                        method: "POST",
+                        body: JSON.stringify({ imagePath: saveData.savedImagePath }),
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                      });
+                      const verifyData = await verifyRes.json();
+                      console.log("Face verification result:", verifyData);
+
+                      // Display the verification result
+                      displayVerificationResult(verifyData, img);
                     } catch (error) {
                       console.error("Error processing image:", error);
                     }
@@ -114,7 +167,7 @@ javascript: (function (s) {
         subtree: true
       });
   
-      alert("Successfully added Messenger Chat Observer!");
+      alert("Successfully added Messenger Chat Observer with Face Verification!");
     }
   
     // Start the initialization process
