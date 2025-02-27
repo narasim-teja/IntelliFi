@@ -7,18 +7,14 @@ export class SpendNoteMerkleTree {
     private tree: MerkleTree;
     private leaves: MerkleLeaf[] = [];
     
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    constructor(_depth: number = 20) { // Default depth of 20 supports ~1M leaves
-        this.tree = new MerkleTree([], SpendNoteMerkleTree.hashFunction, {
-            hashLeaves: true,
+    constructor() {
+        this.tree = new MerkleTree([], (data: Buffer) => {
+            const hash = sha256(data);
+            return Buffer.from(hash);
+        }, {
+            hashLeaves: false, // We'll hash the leaves ourselves
             sortPairs: true,
         });
-    }
-    
-    // Hash function compatible with the smart contract
-    private static hashFunction(data: Buffer): Buffer {
-        const hash = sha256(data);
-        return Buffer.from(hash);
     }
     
     // Create leaf data from spend note
@@ -42,7 +38,7 @@ export class SpendNoteMerkleTree {
             spendNote
         });
         
-        this.tree.addLeaf(leafData);
+        this.tree.addLeaf(leafData, false); // Don't hash again
         return leafHash;
     }
     
@@ -67,6 +63,7 @@ export class SpendNoteMerkleTree {
         
         const leafData = SpendNoteMerkleTree.createLeafData(leaf.spendNote);
         const bufferProof = proof.map(p => Buffer.from(p.slice(2), 'hex'));
+        
         return this.tree.verify(bufferProof, leafData, this.tree.getRoot());
     }
     

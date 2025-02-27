@@ -12,7 +12,7 @@ export class PrivacyManager {
             defaultAmount: config.defaultAmount || '0x0000000000000000000000000000000000000000000000000de0b6b3a7640000' // 1 ETH in hex
         };
         
-        this.merkleTree = new SpendNoteMerkleTree(this.config.merkleTreeDepth);
+        this.merkleTree = new SpendNoteMerkleTree();
     }
     
     // Generate a new spend note for a wallet
