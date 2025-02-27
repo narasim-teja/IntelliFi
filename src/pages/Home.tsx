@@ -1,69 +1,140 @@
 import { useState, useEffect } from "react";
-import { ShieldCheckIcon, LockClosedIcon } from "@heroicons/react/24/outline";
+import { ShieldCheckIcon, LockClosedIcon, CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { FaceProcessor } from "../components/FaceProcessor";
 import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
-
-// Key for storing signature in localStorage
-const SIGNATURE_STORAGE_KEY = 'face_signature';
-const FACE_HASH_STORAGE_KEY = 'face_hash';
+import { useContractInteraction } from "../hooks/useContractInteraction";
 
 export default function Home() {
   const [faceHash, setFaceHash] = useState<string | null>(null);
-  const [signature, setSignature] = useState<string | null>(null);
+  const [faceEmbedding, setFaceEmbedding] = useState<Float32Array | null>(null);
+  const [isRegistered, setIsRegistered] = useState<boolean>(false);
+  const [registrationTimestamp, setRegistrationTimestamp] = useState<number | null>(null);
+  const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
+  const [uniquenessResult, setUniquenessResult] = useState<{
+    isUnique: boolean;
+    similarity: number | null;
+  } | null>(null);
+  const [ipfsHash, setIpfsHash] = useState<string | null>(null);
+  
   const { primaryWallet, user } = useDynamicContext();
+  const { 
+    registerFaceHash, 
+    verifyFaceHash,
+    checkFaceUniqueness,
+    resetLocalData,
+    isRegistering, 
+    error: contractError,
+    registrationStatus,
+    uniquenessStatus
+  } = useContractInteraction();
 
-  // Load saved signature and face hash from localStorage on component mount
+  // Check registration status when wallet connects
   useEffect(() => {
-    const savedSignature = localStorage.getItem(SIGNATURE_STORAGE_KEY);
-    const savedFaceHash = localStorage.getItem(FACE_HASH_STORAGE_KEY);
+    const checkWalletRegistration = async () => {
+      if (primaryWallet && faceHash) {
+        try {
+          const isVerified = await verifyFaceHash(faceHash);
+          setIsRegistered(isVerified);
+        } catch (error) {
+          console.error("Error checking registration status:", error);
+        }
+      }
+    };
     
-    if (savedSignature) {
-      setSignature(savedSignature);
-    }
-    
-    if (savedFaceHash) {
-      setFaceHash(savedFaceHash);
-    }
-  }, []);
+    checkWalletRegistration();
+  }, [primaryWallet, faceHash, verifyFaceHash]);
 
-  // Save face hash to localStorage when it changes
-  const handleFaceHashGenerated = (hash: string) => {
+  // Update state when registration status changes
+  useEffect(() => {
+    if (registrationStatus === 'success') {
+      setIsRegistered(true);
+      setRegistrationTimestamp(Math.floor(Date.now() / 1000));
+    }
+  }, [registrationStatus]);
+
+  // Update state when uniqueness check is completed
+  useEffect(() => {
+    if (uniquenessStatus && uniquenessStatus !== 'checking') {
+      setIsCheckingUniqueness(false);
+      setUniquenessResult({
+        isUnique: uniquenessStatus === 'unique',
+        similarity: null
+      });
+    }
+  }, [uniquenessStatus]);
+
+  // Handle face hash generation
+  const handleFaceHashGenerated = (hash: string, embedding?: Float32Array) => {
     setFaceHash(hash);
-    localStorage.setItem(FACE_HASH_STORAGE_KEY, hash);
+    if (embedding) {
+      setFaceEmbedding(embedding);
+    }
+    setUniquenessResult(null);
   };
 
-  const handleSignHash = async () => {
-    if (!faceHash || !primaryWallet) {
-      console.error("Missing required data for signing");
+  // Handle IPFS hash generation
+  const handleIpfsHashGenerated = (hash: string) => {
+    setIpfsHash(hash);
+  };
+
+  // Combined function to check uniqueness and register if unique
+  const handleRegisterOnChain = async () => {
+    if (!faceEmbedding || !faceHash || !ipfsHash) {
+      console.error("Missing face data or IPFS hash for registration");
       return;
     }
 
+    console.log("Starting registration process...");
+    console.log("Face hash:", faceHash.substring(0, 10) + "...");
+    console.log("IPFS hash:", ipfsHash);
+    
+    // First, check uniqueness
+    setIsCheckingUniqueness(true);
     try {
-      // Create a message to sign that includes the face hash
-      const message = `I confirm this face hash belongs to me:\n\n${faceHash}`;
+      console.log("Checking face uniqueness...");
+      const isUnique = await checkFaceUniqueness(faceEmbedding, ipfsHash);
+      console.log("Uniqueness check result:", isUnique);
       
-      // Sign the message using the primary wallet
-      const signedMessage = await primaryWallet.signMessage(message);
-      if (signedMessage) {
-        // Save signature to state and localStorage
-        setSignature(signedMessage);
-        localStorage.setItem(SIGNATURE_STORAGE_KEY, signedMessage);
-        console.log("Signature:", signedMessage);
-        // Here you would typically send the signature and hash to your backend
+      if (isUnique) {
+        // If unique, proceed with registration
+        console.log("Face is unique, proceeding with registration...");
+        await registerFaceHash(faceHash, ipfsHash);
+        console.log("Registration completed");
       } else {
-        console.error("Failed to get signature");
+        console.log("Face is not unique, cannot register");
+        // Set uniqueness result to show the user
+        setUniquenessResult({
+          isUnique: false,
+          similarity: null
+        });
       }
-    } catch (error) {
-      console.error("Error signing message:", error);
+    } catch (error: unknown) {
+      console.error("Error during registration process:", error);
+      
+      // Show error in UI
+      setUniquenessResult({
+        isUnique: false,
+        similarity: null
+      });
+    } finally {
+      setIsCheckingUniqueness(false);
     }
   };
 
   // Function to reset identity (for testing purposes)
   const resetIdentity = () => {
-    localStorage.removeItem(SIGNATURE_STORAGE_KEY);
-    localStorage.removeItem(FACE_HASH_STORAGE_KEY);
-    setSignature(null);
+    resetLocalData();
+    setIsRegistered(false);
+    setRegistrationTimestamp(null);
     setFaceHash(null);
+    setFaceEmbedding(null);
+    setUniquenessResult(null);
+    setIpfsHash(null);
+  };
+
+  // Format timestamp to readable date
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp * 1000).toLocaleString();
   };
 
   return (
@@ -92,55 +163,129 @@ export default function Home() {
           <div className="space-y-4">
             <FaceProcessor 
               onHashGenerated={handleFaceHashGenerated} 
-              isWalletLinked={!!signature} 
+              onIpfsHashGenerated={handleIpfsHashGenerated}
+              hasWallet={!!primaryWallet}
             />
             
-            {/* Sign Button and Signature Display */}
-            {faceHash && !signature && (
+            {/* Uniqueness Check Button */}
+            {faceHash && ipfsHash && !isRegistered && !uniquenessResult && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <p className="text-gray-700 mb-4">
+                  Ready to register your face on the blockchain? Click below to check uniqueness and register.
+                </p>
                 <button 
                   className={`w-full rounded-lg px-4 py-3 text-base font-medium transition-colors ${
                     !user
                       ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      : isCheckingUniqueness || isRegistering
+                        ? "bg-indigo-400 cursor-wait"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
                   }`}
-                  onClick={handleSignHash}
-                  disabled={!user}
+                  onClick={handleRegisterOnChain}
+                  disabled={!user || isCheckingUniqueness || isRegistering || !ipfsHash || !faceEmbedding}
                 >
                   {!user 
-                    ? "Connect Wallet to Sign"
-                    : "Sign & Register Identity"
+                    ? "Connect Wallet to Register"
+                    : isCheckingUniqueness
+                      ? "Checking Face Uniqueness..."
+                      : isRegistering
+                        ? "Registering on Blockchain..."
+                        : "Register Identity on Blockchain"
                   }
                 </button>
               </div>
             )}
-
-            {signature && (
+            
+            {/* Uniqueness Check Results */}
+            {uniquenessResult && !isRegistered && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <p className="text-green-700 font-medium">Identity Successfully Registered!</p>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Your face hash has been cryptographically signed with your wallet.
-                  </p>
-                  <details className="mt-3">
-                    <summary className="text-sm text-indigo-600 cursor-pointer">View Signature Details</summary>
-                    <p className="mt-2 text-xs text-gray-600 break-all font-mono bg-white p-2 rounded border border-gray-200">
-                      {signature}
+                {uniquenessResult.isUnique ? (
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <div className="flex items-center">
+                      <CheckCircleIcon className="h-6 w-6 text-green-600" />
+                      <p className="ml-2 text-green-700 font-medium">Face is Unique!</p>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600">
+                      This face hasn't been registered by any other wallet. You can proceed with registration.
                     </p>
-                  </details>
-                </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-amber-50 rounded-lg">
+                    <div className="flex items-center">
+                      <ExclamationTriangleIcon className="h-6 w-6 text-amber-600" />
+                      <p className="ml-2 text-amber-700 font-medium">Face Already Registered</p>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600">
+                      This face appears to be already registered by another wallet.
+                      {uniquenessResult.similarity !== null && (
+                        <span> Similarity score: {(uniquenessResult.similarity * 100).toFixed(1)}%</span>
+                      )}
+                    </p>
+                    
+                    <p className="mt-3 text-sm text-amber-700">
+                      To prevent identity fraud, you cannot register this face. Please try with a different face.
+                    </p>
+                  </div>
+                )}
                 
-                {/* Reset button (for development/testing purposes) */}
-                <div className="mt-4 text-right">
+                {/* Register Button (only shown if face is unique) */}
+                {uniquenessResult.isUnique && (
                   <button 
-                    onClick={resetIdentity}
-                    className="text-xs text-gray-500 hover:text-red-600"
+                    className={`w-full mt-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
+                      !user || !ipfsHash
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : isRegistering
+                          ? "bg-indigo-400 cursor-wait"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                    onClick={handleRegisterOnChain}
+                    disabled={!user || isRegistering || !ipfsHash}
                   >
-                    Reset Identity
+                    {!user 
+                      ? "Connect Wallet to Register"
+                      : !ipfsHash
+                        ? "Upload to IPFS First"
+                        : isRegistering
+                          ? "Registering on Blockchain..."
+                          : "Register Identity on Blockchain"
+                    }
                   </button>
-                </div>
+                )}
+                
+                {contractError && (
+                  <div className="mt-4 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+                    {contractError}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Registration Success */}
+            {isRegistered && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-4">
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <div className="flex items-center">
+                    <CheckCircleIcon className="h-6 w-6 text-green-600" />
+                    <p className="ml-2 text-green-700 font-medium">Registration Successful!</p>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Your face has been successfully registered on the blockchain.
+                    {registrationTimestamp && (
+                      <span> Registered on: {formatTimestamp(registrationTimestamp)}</span>
+                    )}
+                  </p>
+                </div>
+                
+                <button 
+                  className="w-full mt-4 rounded-lg px-4 py-3 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={resetIdentity}
+                >
+                  Start Over
+                </button>
+              </div>
+            )}
+            
+           
           </div>
 
           {/* Security Information */}
@@ -161,7 +306,17 @@ export default function Home() {
                 <h3 className="ml-2 text-lg font-medium text-gray-900">Blockchain Secured</h3>
               </div>
               <p className="mt-2 text-gray-600">
-                Your identity verification is cryptographically signed and secured on the blockchain, creating an immutable record of your verification.
+                Your identity verification is registered directly on the Base Sepolia blockchain, creating an immutable record of your verification that can be used for secure authentication.
+              </p>
+            </div>
+            
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="h-6 w-6 text-amber-600" />
+                <h3 className="ml-2 text-lg font-medium text-gray-900">Sybil Resistance</h3>
+              </div>
+              <p className="mt-2 text-gray-600">
+                Our system prevents the same face from being registered with multiple wallets. Before registration, we check if your face is already associated with another wallet to prevent identity fraud.
               </p>
             </div>
           </div>

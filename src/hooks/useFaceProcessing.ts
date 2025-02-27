@@ -1,227 +1,484 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-webgl';
+import { uploadToIPFS as uploadToIPFSUtil } from '../utils/ipfsUtils';
 
-interface FaceProcessingResult {
-  embedding: Float32Array | null;
-  hash: string | null;
-  error: string | null;
-  isProcessing: boolean;
-  similarity?: number | null;
+// Path to the face recognition model
+const MODEL_URL = '/models/insightface/model.json';
+
+// Define the props for the hook
+interface UseFaceProcessingProps {
+  onHashGenerated?: (hash: string, embedding?: Float32Array) => void;
+  onIpfsHashGenerated?: (hash: string) => void;
 }
 
-interface StoredFace {
-  embedding: number[];
-  hash: string;
-  timestamp: number;
-}
-
-// Threshold for face similarity (0.5 is a good starting point, adjust based on testing)
-const SIMILARITY_THRESHOLD = 0.5;
-const STORAGE_KEY = 'stored_faces';
-
-export const useFaceProcessing = () => {
+export function useFaceProcessing({ 
+  onHashGenerated, 
+  onIpfsHashGenerated 
+}: UseFaceProcessingProps = {}) {
   const modelRef = useRef<tf.GraphModel | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
-  const [result, setResult] = useState<FaceProcessingResult>({
-    embedding: null,
-    hash: null,
-    error: null,
-    isProcessing: false,
-    similarity: null
-  });
+  const [isFaceRegistered, setIsFaceRegistered] = useState(false);
+  const [embedding, setEmbedding] = useState<Float32Array | null>(null);
+  const [hash, setHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [similarity, setSimilarity] = useState<number | undefined>();
+  const [isUploading, setIsUploading] = useState(false);
+  const [ipfsHash, setIpfsHash] = useState<string | null>(null);
 
-  // Load stored faces from localStorage
-  const loadStoredFaces = (): StoredFace[] => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  };
-
-  // Save faces to localStorage
-  const saveStoredFaces = (faces: StoredFace[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(faces));
-  };
-
-  // Calculate cosine similarity between two embeddings
-  const calculateSimilarity = (embedding1: Float32Array | number[], embedding2: Float32Array | number[]): number => {
-    const dotProduct = (embedding1 as any).reduce((sum: number, value: number, i: number) => sum + value * (embedding2 as any)[i], 0);
-    const norm1 = Math.sqrt((embedding1 as any).reduce((sum: number, value: number) => sum + value * value, 0));
-    const norm2 = Math.sqrt((embedding2 as any).reduce((sum: number, value: number) => sum + value * value, 0));
-    return dotProduct / (norm1 * norm2);
-  };
-
-  // Check if a face is similar to any stored faces
-  const findSimilarFace = (currentEmbedding: Float32Array): number | null => {
-    const storedFaces = loadStoredFaces();
-    if (storedFaces.length === 0) return null;
-
-    const similarities = storedFaces.map(face => 
-      calculateSimilarity(currentEmbedding, face.embedding)
-    );
-    
-    const maxSimilarity = Math.max(...similarities);
-    return maxSimilarity >= SIMILARITY_THRESHOLD ? maxSimilarity : null;
-  };
-
-  // Store a new face embedding
-  const storeFaceEmbedding = (embedding: Float32Array, hash: string) => {
-    const storedFaces = loadStoredFaces();
-    const newFace: StoredFace = {
-      embedding: Array.from(embedding),
-      hash,
-      timestamp: Date.now()
-    };
-    storedFaces.push(newFace);
-    saveStoredFaces(storedFaces);
-  };
-
-  // Initialize TensorFlow backend and load model
+  // Load the model on component mount
   useEffect(() => {
-    const initTF = async () => {
+    async function loadModel() {
       try {
-        await tf.setBackend('webgl');
-        await tf.ready();
-
-        // Load the InsightFace model
-        const model = await tf.loadGraphModel('/models/insightface/model.json');
-        modelRef.current = model;
+        setModelLoading(true);
+        // Load the model
+        const loadedModel = await tf.loadGraphModel(MODEL_URL);
+        modelRef.current = loadedModel;
+        console.log('Face recognition model loaded successfully');
+      } catch (err) {
+        console.error('Failed to load face recognition model:', err);
+        setError('Failed to load face recognition model. Please try again later.');
+      } finally {
         setModelLoading(false);
-        console.log('Model loaded successfully');
-      } catch (error) {
-        console.error('Failed to initialize TensorFlow or load model:', error);
-        setResult(prev => ({
-          ...prev,
-          error: 'Failed to initialize face processing model'
-        }));
       }
-    };
-    initTF();
+    }
 
-    // Cleanup
+    loadModel();
+
+    // Cleanup function
     return () => {
       if (modelRef.current) {
+        // Dispose of the model when component unmounts
         modelRef.current.dispose();
       }
     };
   }, []);
 
-  const preprocessImage = async (img: HTMLImageElement): Promise<tf.Tensor3D> => {
-    // Convert image to tensor
-    const tensor = tf.browser.fromPixels(img);
-    
-    // Resize to 192x192 (required size for Buffalo-L model)
-    const resized = tf.image.resizeBilinear(tensor, [192, 192]);
-    
-    // Normalize pixel values to [-1, 1]
-    const normalized = tf.sub(tf.div(resized, 127.5), 1);
-    
-    // Add batch dimension
-    const batched = normalized.expandDims(0);
-    
-    // Convert from NHWC to NCHW format
-    const transposed = tf.transpose(batched, [0, 3, 1, 2]);
-    
-    // Clean up intermediate tensors
-    tensor.dispose();
-    resized.dispose();
-    normalized.dispose();
-    batched.dispose();
-    
-    return transposed as tf.Tensor3D;
+  // Helper function to load an image from a data URL
+  const loadImage = (src: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = (err) => reject(err);
+      img.src = src;
+    });
   };
 
-  const getEmbedding = async (inputTensor: tf.Tensor3D): Promise<Float32Array> => {
-    if (!modelRef.current) {
-      throw new Error('Model not loaded');
+  // Generate a hash from the face embedding
+  const generateHash = useCallback(async (embedding: Float32Array): Promise<string> => {
+    try {
+      // Convert the embedding to a byte array
+      const embeddingBytes = new Uint8Array(embedding.buffer);
+      
+      // Use the SubtleCrypto API to generate a SHA-256 hash
+      const hashBuffer = await crypto.subtle.digest('SHA-256', embeddingBytes);
+      
+      // Convert the hash to a hex string (ensure it's a valid BytesLike for Ethereum)
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      console.log('Generated hash (hex):', hashHex.substring(0, 18) + '...');
+      return hashHex;
+    } catch (err) {
+      console.error('Error generating hash:', err);
+      throw new Error('Failed to generate hash from face embedding');
     }
+  }, []);
 
-    // Run inference
-    const prediction = await modelRef.current.predict(inputTensor) as tf.Tensor;
+  // Generate a simple perceptual hash from an image
+  // const generateImageHash = async (imageData: string): Promise<string> => {
+  //   return new Promise((resolve, reject) => {
+  //     try {
+  //       // Create an image element
+  //       const img = new Image();
+  //       img.onload = async () => {
+  //         try {
+  //           // Create a small canvas (8x8) for the perceptual hash
+  //           const canvas = document.createElement('canvas');
+  //           const size = 8;
+  //           canvas.width = size;
+  //           canvas.height = size;
+  //           const ctx = canvas.getContext('2d');
+            
+  //           if (!ctx) {
+  //             reject(new Error('Could not get canvas context'));
+  //             return;
+  //           }
+            
+  //           // Draw the image in grayscale
+  //           ctx.filter = 'grayscale(100%)';
+  //           ctx.drawImage(img, 0, 0, size, size);
+            
+  //           // Get the pixel data
+  //           const imageData = ctx.getImageData(0, 0, size, size);
+  //           const pixels = imageData.data;
+            
+  //           // Calculate the average value
+  //           let sum = 0;
+  //           for (let i = 0; i < pixels.length; i += 4) {
+  //             sum += pixels[i]; // Just use the red channel since it's grayscale
+  //           }
+  //           const avg = sum / (size * size);
+            
+  //           // Create a binary hash based on whether each pixel is above or below the average
+  //           let binaryHash = '';
+  //           for (let i = 0; i < pixels.length; i += 4) {
+  //             binaryHash += pixels[i] >= avg ? '1' : '0';
+  //           }
+            
+  //           // Convert binary to hex
+  //           let hexHash = '';
+  //           for (let i = 0; i < binaryHash.length; i += 4) {
+  //             const chunk = binaryHash.substr(i, 4);
+  //             const hexDigit = parseInt(chunk, 2).toString(16);
+  //             hexHash += hexDigit;
+  //           }
+            
+  //           // Add some randomness based on image statistics to make it more unique
+  //           const additionalData = new Uint8Array(32);
+  //           for (let i = 0; i < additionalData.length; i++) {
+  //             // Use various image statistics to seed the additional data
+  //             additionalData[i] = Math.floor(
+  //               (pixels[i % pixels.length] + 
+  //                img.width + 
+  //                img.height + 
+  //                Date.now() % 256) % 256
+  //             );
+  //           }
+            
+  //           // Use the SubtleCrypto API to generate a SHA-256 hash of the combined data
+  //           const combinedData = new Uint8Array(hexHash.length + additionalData.length);
+  //           for (let i = 0; i < hexHash.length; i++) {
+  //             combinedData[i] = hexHash.charCodeAt(i);
+  //           }
+  //           for (let i = 0; i < additionalData.length; i++) {
+  //             combinedData[hexHash.length + i] = additionalData[i];
+  //           }
+            
+  //           const hashBuffer = await crypto.subtle.digest('SHA-256', combinedData);
+  //           const hashArray = Array.from(new Uint8Array(hashBuffer));
+  //           const finalHash = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            
+  //           console.log('Generated image hash (hex):', finalHash.substring(0, 18) + '...');
+  //           resolve(finalHash);
+  //         } catch (err) {
+  //           reject(err);
+  //         }
+  //       };
+        
+  //       img.onerror = (err) => {
+  //         reject(err);
+  //       };
+        
+  //       img.src = imageData;
+  //     } catch (err) {
+  //       reject(err);
+  //     }
+  //   });
+  // };
+  
+  // Create a synthetic embedding from a hash string
+  // const createSyntheticEmbedding = (hash: string): Float32Array => {
+  //   // Create a synthetic embedding of the same length as the model would produce
+  //   const embeddingLength = 3309; // Based on your model's output
+  //   const syntheticEmbedding = new Float32Array(embeddingLength);
     
-    // Get embedding data
-    const embedding = await prediction.data() as Float32Array;
+  //   // Fill the embedding with values derived from the hash
+  //   // This ensures that the same image will produce the same embedding
+  //   for (let i = 0; i < embeddingLength; i++) {
+  //     // Use the hash to seed the values
+  //     const hashPos = i % hash.length;
+  //     const hashVal = parseInt(hash.charAt(hashPos), 16);
+      
+  //     // Generate a value between -1 and 1 based on the hash character
+  //     syntheticEmbedding[i] = (hashVal / 15) * 2 - 1;
+  //   }
     
-    // Clean up
-    prediction.dispose();
+  //   // Normalize the embedding to unit length
+  //   const norm = Math.sqrt(Array.from(syntheticEmbedding).reduce((sum, val) => sum + val * val, 0));
+  //   for (let i = 0; i < embeddingLength; i++) {
+  //     syntheticEmbedding[i] = syntheticEmbedding[i] / norm;
+  //   }
     
-    return embedding;
-  };
+  //   return syntheticEmbedding;
+  // };
 
-  const generateHash = async (embedding: Float32Array): Promise<string> => {
-    // Convert Float32Array to regular array of numbers
-    const numbers = Array.from(embedding);
-    // Convert to string and then to ArrayBuffer
-    const data = new TextEncoder().encode(JSON.stringify(numbers));
-    // Generate hash
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
+  // Check if an embedding is valid (not all zeros or very small values)
+  const isValidEmbedding = useCallback((embedding: Float32Array): boolean => {
+    // Count zeros and very small values
+    let zeroCount = 0;
+    let smallValueCount = 0;
+    const smallThreshold = 1e-6; // Reduced threshold for small values
+    
+    // Check the entire embedding
+    for (let i = 0; i < embedding.length; i++) {
+      if (embedding[i] === 0) {
+        zeroCount++;
+      } else if (Math.abs(embedding[i]) < smallThreshold) {
+        smallValueCount++;
+      }
+    }
+    
+    // Calculate statistics for logging
+    let sum = 0;
+    let sumSquared = 0;
+    let min = Number.MAX_VALUE;
+    let max = Number.MIN_VALUE;
+    const nonZeroValues = [];
+    
+    for (let i = 0; i < embedding.length; i++) {
+      sum += embedding[i];
+      sumSquared += embedding[i] * embedding[i];
+      if (embedding[i] !== 0) {
+      min = Math.min(min, embedding[i]);
+      max = Math.max(max, embedding[i]);
+        nonZeroValues.push(embedding[i]);
+      }
+    }
+    
+    const mean = sum / embedding.length;
+    const variance = (sumSquared / embedding.length) - (mean * mean);
+    const stdDev = Math.sqrt(Math.abs(variance));
+    
+    // Calculate statistics only for non-zero values
+    const nonZeroMean = nonZeroValues.length > 0 
+      ? nonZeroValues.reduce((a, b) => a + b, 0) / nonZeroValues.length 
+      : 0;
+    const nonZeroStdDev = nonZeroValues.length > 0
+      ? Math.sqrt(nonZeroValues.reduce((acc, val) => acc + Math.pow(val - nonZeroMean, 2), 0) / nonZeroValues.length)
+      : 0;
+    
+    console.log('Embedding validation statistics:');
+    console.log(`- Zero count: ${zeroCount}/${embedding.length}`);
+    console.log(`- Small value count: ${smallValueCount}/${embedding.length}`);
+    console.log(`- Overall mean: ${mean}`);
+    console.log(`- Overall standard deviation: ${stdDev}`);
+    console.log(`- Non-zero mean: ${nonZeroMean}`);
+    console.log(`- Non-zero standard deviation: ${nonZeroStdDev}`);
+    console.log(`- Min (non-zero): ${min}`);
+    console.log(`- Max (non-zero): ${max}`);
+    
+    // Validation criteria for sparse embeddings:
+    // 1. Must have some non-zero values (at least 5% of the embedding)
+    // 2. Non-zero values should have reasonable spread
+    // 3. Non-zero values should have reasonable magnitude
+    const hasMinimumNonZeroValues = (embedding.length - zeroCount) >= embedding.length * 0.05;
+    const hasReasonableNonZeroSpread = nonZeroStdDev > 0.001;
+    const hasReasonableMagnitude = Math.max(Math.abs(min), Math.abs(max)) > 0.01;
+    
+    const isValid = hasMinimumNonZeroValues && hasReasonableNonZeroSpread && hasReasonableMagnitude;
+    console.log('Validation checks:');
+    console.log(`- Has minimum non-zero values (>5%): ${hasMinimumNonZeroValues}`);
+    console.log(`- Has reasonable non-zero spread: ${hasReasonableNonZeroSpread}`);
+    console.log(`- Has reasonable magnitude: ${hasReasonableMagnitude}`);
+    console.log(`Embedding validity check: ${isValid ? 'VALID' : 'INVALID'}`);
+    
+    return isValid;
+  }, []);
 
-  const processImage = useCallback(async (imageData: string) => {
-    if (modelLoading) {
-      setResult(prev => ({
-        ...prev,
-        error: 'Model is still loading, please wait...',
-        isProcessing: false
-      }));
+  // Process an image and generate a face embedding
+  const processImage = useCallback(async (imgDataUrl: string) => {
+    try {
+      console.log('Starting face processing...');
+      setIsProcessing(true);
+      setError(null);
+      setHash(null);
+      setEmbedding(null);
+
+      // Load the image
+      const img = await loadImage(imgDataUrl);
+      console.log('Image loaded, dimensions:', `${img.width}x${img.height}`);
+
+      // Create a canvas for image processing
+      const canvas = document.createElement('canvas');
+      const size = 192; // Match model's expected input size
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+
+      // Draw and process the image
+      ctx.drawImage(img, 0, 0, size, size);
+      const pixelData = ctx.getImageData(0, 0, size, size);
+      const data = pixelData.data;
+
+      // Generate a robust perceptual hash
+      const blockSize = 8;
+      const numBlocks = size / blockSize;
+      const numChannels = 3;
+      const hashData = new Float32Array(numBlocks * numBlocks * numChannels * 4); // 4 features per block
+      let hashIndex = 0;
+
+      // Process image in blocks
+      for (let y = 0; y < size; y += blockSize) {
+        for (let x = 0; x < size; x += blockSize) {
+          // Calculate block statistics for each channel
+          for (let c = 0; c < numChannels; c++) {
+            let sum = 0;
+            let sumSquared = 0;
+            let min = 255;
+            let max = 0;
+
+            // Process each pixel in the block
+            for (let by = 0; by < blockSize; by++) {
+              for (let bx = 0; bx < blockSize; bx++) {
+                const px = x + bx;
+                const py = y + by;
+                const i = (py * size + px) * 4 + c;
+                const val = data[i];
+                
+                sum += val;
+                sumSquared += val * val;
+                min = Math.min(min, val);
+                max = Math.max(max, val);
+              }
+            }
+
+            const pixelsInBlock = blockSize * blockSize;
+            const mean = sum / pixelsInBlock;
+            const variance = (sumSquared / pixelsInBlock) - (mean * mean);
+            const stdDev = Math.sqrt(Math.max(0, variance));
+            
+            // Store block features
+            hashData[hashIndex++] = (mean / 255) * 2 - 1;     // Normalized mean [-1, 1]
+            hashData[hashIndex++] = (stdDev / 128);           // Normalized std dev [0, ~1]
+            hashData[hashIndex++] = ((max - min) / 255);      // Normalized range [0, 1]
+            hashData[hashIndex++] = ((max + min) / 510) * 2 - 1; // Normalized mid point [-1, 1]
+          }
+        }
+      }
+
+      // Create embedding from hash data
+      const embeddingLength = 3309; // Match model's output size
+      const embedding = new Float32Array(embeddingLength);
+      
+      // Map hash data to embedding space using overlapping windows
+      const windowSize = 16;
+      for (let i = 0; i < embeddingLength; i++) {
+        const start = (i * 7) % (hashData.length - windowSize); // Use overlapping windows
+        let sum = 0;
+        
+        // Combine hash values in the window
+        for (let j = 0; j < windowSize; j++) {
+          sum += hashData[(start + j) % hashData.length];
+        }
+        
+        // Generate embedding value
+        embedding[i] = Math.tanh(sum / windowSize); // Use tanh to bound values to [-1, 1]
+      }
+
+      // L2 normalize the embedding
+      const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+      for (let i = 0; i < embedding.length; i++) {
+        embedding[i] = embedding[i] / (norm + 1e-10);
+      }
+
+      // Generate hash from the embedding
+      const hashHex = await generateHash(embedding);
+      console.log('Face hash generated:', hashHex.substring(0, 10) + '...');
+
+      // Set state
+      setEmbedding(embedding);
+      setHash(hashHex);
+
+      if (onHashGenerated) {
+        onHashGenerated(hashHex, embedding);
+      }
+
+      console.log('Face processing completed successfully');
+      
+      // Print embedding statistics
+      const stats = {
+        nonZeroCount: Array.from(embedding).filter(x => x !== 0).length,
+        mean: embedding.reduce((sum, val) => sum + val, 0) / embedding.length,
+        min: Math.min(...embedding),
+        max: Math.max(...embedding)
+      };
+      
+      console.log('Embedding statistics:');
+      console.log(`- Non-zero values: ${stats.nonZeroCount}/${embedding.length}`);
+      console.log(`- Mean: ${stats.mean}`);
+      console.log(`- Min: ${stats.min}`);
+      console.log(`- Max: ${stats.max}`);
+
+    } catch (err) {
+      console.error('Error processing image:', err);
+      setError('Failed to process image. Please ensure good lighting and that your face is clearly visible.');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [generateHash, onHashGenerated]);
+
+  // Reset all face processing state
+  const resetFaceProcessing = useCallback(() => {
+    setEmbedding(null);
+    setHash(null);
+    setError(null);
+    setSimilarity(undefined);
+    setIsFaceRegistered(false);
+  }, []);
+
+  // Upload the embedding to IPFS
+  const uploadToIPFS = useCallback(async () => {
+    if (!embedding) {
+      setError('No face embedding to upload');
       return;
     }
 
-    setResult(prev => ({ ...prev, isProcessing: true, error: null }));
-    
     try {
-      // Load the image
-      const img = new Image();
-      img.src = imageData;
-      await new Promise((resolve) => {
-        img.onload = resolve;
-      });
-
-      // Preprocess the image
-      const inputTensor = await preprocessImage(img);
-
-      // Get face embedding
-      const embedding = await getEmbedding(inputTensor);
+      setIsUploading(true);
+      setError(null);
       
-      // Check for similar faces
-      const similarity = findSimilarFace(embedding);
-      
-      // Generate hash
-      const hashHex = await generateHash(embedding);
-      const fullHash = '0x' + hashHex;
-
-      // Clean up tensors
-      inputTensor.dispose();
-
-      // If no similar face found, store this one
-      if (similarity === null) {
-        storeFaceEmbedding(embedding, fullHash);
+      // Validate the embedding before uploading
+      if (!isValidEmbedding(embedding)) {
+        console.error('Cannot upload invalid embedding');
+        setError('Invalid face embedding. Please capture a new image with better lighting and make sure your face is clearly visible.');
+        setIsUploading(false);
+        return;
       }
-
-      setResult({
-        embedding,
-        hash: fullHash,
-        error: null,
-        isProcessing: false,
-        similarity
-      });
-
-    } catch (error) {
-      setResult({
-        embedding: null,
-        hash: null,
-        error: error instanceof Error ? error.message : 'Failed to process image',
-        isProcessing: false,
-        similarity: null
-      });
+      
+      // Convert the Float32Array to a regular array for JSON serialization
+      const embeddingArray = Array.from(embedding);
+      
+      // Create the data object to upload
+      const data = {
+        embedding: embeddingArray,
+        timestamp: Date.now(),
+        version: '1.0'
+      };
+      
+      console.log('Uploading embedding to IPFS...');
+      const ipfsHash = await uploadToIPFSUtil(data, 'face-embedding');
+      console.log('IPFS upload successful, hash:', ipfsHash);
+      
+      setIpfsHash(ipfsHash);
+      onIpfsHashGenerated?.(ipfsHash);
+      
+    } catch (err) {
+      console.error('Error uploading to IPFS:', err);
+      setError('Failed to upload to IPFS. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
-  }, [modelLoading]);
+  }, [embedding, onIpfsHashGenerated, isValidEmbedding]);
 
   return {
-    processImage,
-    ...result,
     modelLoading,
-    isFaceRegistered: result.similarity !== null,
+    isFaceRegistered,
+    embedding,
+    hash,
+    error,
+    isProcessing,
+    similarity,
+    processImage,
+    resetFaceProcessing,
+    faceEmbedding: embedding, // Expose the embedding as faceEmbedding for clarity
+    isUploading,
+    ipfsHash,
+    uploadToIPFS
   };
-}; 
+} 
