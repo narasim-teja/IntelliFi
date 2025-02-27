@@ -1,0 +1,26 @@
+{
+  "name": "face-processing-backend",
+  "version": "1.0.0",
+  "description": "Backend server for face processing and verification",
+  "main": "src/server.ts",
+  "scripts": {
+    "start": "bun src/server.ts",
+    "dev": "bun --watch src/server.ts",
+    "convert-model": "node scripts/convert-model.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.17.0",
+    "@tensorflow/tfjs-converter": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "axios": "^1.6.7",
+    "ethers": "^6.0.0",
+    "sharp": "^0.33.2",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@types/sharp": "^0.32.0",
+    "bun-types": "latest"
+  }
+}
