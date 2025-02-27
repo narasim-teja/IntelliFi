@@ -10,11 +10,15 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@noble/hashes": "^1.7.1",
+    "@noble/secp256k1": "^2.2.3",
     "@tensorflow/tfjs": "^4.17.0",
     "@tensorflow/tfjs-converter": "^4.22.0",
     "@tensorflow/tfjs-node": "^4.22.0",
     "axios": "^1.6.7",
     "ethers": "^6.0.0",
+    "fixed-merkle-tree": "^0.7.3",
+    "merkletreejs": "^0.5.1",
     "sharp": "^0.33.2",
     "typescript": "^5.3.3"
   },
