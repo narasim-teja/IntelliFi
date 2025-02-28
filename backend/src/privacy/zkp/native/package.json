@@ -1,0 +1,23 @@
+{
+  "name": "privacy-zkp-native",
+  "version": "0.1.0",
+  "description": "Native RISC Zero bindings for privacy ZKP",
+  "main": "index.js",
+  "scripts": {
+    "build": "napi build --platform",
+    "build:debug": "napi build --platform --debug",
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.16.3"
+  },
+  "napi": {
+    "name": "privacy-zkp-native",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin"
+      ]
+    }
+  }
+} 

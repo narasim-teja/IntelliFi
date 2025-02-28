@@ -1,5 +1,6 @@
 import { generateNullifier, verifyNullifier } from './nullifier';
 import { PrivacyManager } from './index';
+// import { SpendProof } from './zkp';
 
 async function testNullifier() {
     console.log('Testing Nullifier Generation and Verification...');
@@ -20,10 +21,12 @@ async function testNullifier() {
         );
         console.log('Verification Result:', isValid);
         
-        // Test 2: Test the complete privacy manager flow
-        console.log('\nTest 2: Privacy Manager Flow');
+        // Test 2: Test the complete privacy manager flow with ZK proofs
+        console.log('\nTest 2: Privacy Manager Flow with ZK Proofs');
         const privacyManager = new PrivacyManager();
         await privacyManager.initialize();
+        
+        console.log('Generating spend note with ZK proof...');
         const result = await privacyManager.generateSpendNote(walletAddress);
         
         console.log('Generated Spend Note:', {
@@ -34,12 +37,13 @@ async function testNullifier() {
         });
         
         console.log('Merkle Root:', privacyManager.getMerkleRoot());
+        console.log('ZK Proof Generated:', !!result.proof);
         
-        // Get proof and verify
-        const proof = privacyManager.merkleTree.getProof(result.leafHash);
+        // Verify the spend note with ZK proof
+        console.log('\nVerifying spend note with ZK proof...');
         const isSpendValid = await privacyManager.verifySpendNote(
             result.leafHash,
-            proof,
+            result.proof,
             result.nullifierData.nullifier,
             result.nullifierData.encryptedNullifier
         );

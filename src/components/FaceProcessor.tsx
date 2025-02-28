@@ -333,42 +333,44 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
 
   // Render the component
   return (
-    <div className="border border-gray-200 rounded-lg p-4 w-full max-w-[500px] mx-auto">
-      <h3 className="text-xl font-bold mb-4 text-center">
+    <div className="border border-gray-700 rounded-lg p-4 w-full max-w-[500px] mx-auto bg-gray-800/80 backdrop-blur-sm shadow-lg">
+      <h3 className="text-xl font-bold mb-4 text-center text-white">
         Face Authentication
       </h3>
       
       {/* Camera or captured image */}
       <div className="relative w-full h-auto mb-4">
         {!isCameraOn ? (
-          <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg p-8 h-[320px]">
-            <CameraIcon className="h-16 w-16 text-gray-400 mb-4" />
-            <p className="text-gray-600 mb-4 text-center">Camera is currently off</p>
+          <div className="flex flex-col items-center justify-center bg-gray-900 rounded-lg p-8 h-[320px]">
+            <CameraIcon className="h-16 w-16 text-gray-300 mb-4" />
+            <p className="text-gray-300 mb-4 text-center">Camera is currently off</p>
             {hasWallet ? (
               <button 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md"
                 onClick={turnOnCamera}
               >
                 Turn On Camera
               </button>
             ) : (
-              <p className="text-amber-600 text-sm text-center">
+              <p className="text-amber-400 text-sm text-center">
                 Please connect your wallet first
               </p>
             )}
           </div>
         ) : !capturedImage ? (
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            videoConstraints={{
-              facingMode: "user",
-              width: 480,
-              height: 480
-            }}
-            className="w-full rounded-lg"
-          />
+          <div className="bg-gray-900 rounded-lg overflow-hidden">
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{
+                facingMode: "user",
+                width: 480,
+                height: 480
+              }}
+              className="w-full rounded-lg"
+            />
+          </div>
         ) : (
           <img 
             src={capturedImage} 
@@ -379,7 +381,7 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
         
         {/* Loading overlay */}
         {isCameraOn && (modelLoading || isProcessing || isUploading) && (
-          <div className="absolute inset-0 bg-black bg-opacity-30 rounded-lg flex justify-center items-center flex-col">
+          <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex justify-center items-center flex-col">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mb-2"></div>
             <p className="text-white font-bold">
               {modelLoading ? 'Loading model...' : isUploading ? 'Uploading to IPFS...' : 'Processing...'}
@@ -390,19 +392,19 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
       
       {/* Status and error messages */}
       {error && (
-        <div className="mb-4 p-2 bg-red-100 rounded-md">
+        <div className="mb-4 p-2 bg-red-900/50 rounded-md">
           <div className="flex items-center">
-            <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-2" />
-            <p className="text-red-500">{error}</p>
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
+            <p className="text-red-400">{error}</p>
           </div>
         </div>
       )}
       
       {hash && isFaceRegistered && similarity !== undefined && (
-        <div className="mb-4 p-2 bg-green-100 rounded-md">
+        <div className="mb-4 p-2 bg-green-900/50 rounded-md">
           <div className="flex items-center">
-            <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
-            <p className="text-green-500">
+            <CheckCircleIcon className="h-5 w-5 text-green-400 mr-2" />
+            <p className="text-green-400">
               Face recognized! Similarity: {similarity.toFixed(2)}
             </p>
           </div>
@@ -410,10 +412,10 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
       )}
       
       {hash && !isFaceRegistered && similarity !== undefined && (
-        <div className="mb-4 p-2 bg-orange-100 rounded-md">
+        <div className="mb-4 p-2 bg-amber-900/50 rounded-md">
           <div className="flex items-center">
-            <ExclamationTriangleIcon className="h-5 w-5 text-orange-500 mr-2" />
-            <p className="text-orange-500">
+            <ExclamationTriangleIcon className="h-5 w-5 text-amber-400 mr-2" />
+            <p className="text-amber-400">
               Face not recognized. Similarity: {similarity.toFixed(2)}
             </p>
           </div>
@@ -421,29 +423,29 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
       )}
       
       {ipfsHash && (
-        <div className="mb-4 p-2 bg-blue-100 rounded-md">
-          <p className="font-semibold">IPFS Hash:</p>
-          <p className="text-sm break-all">{ipfsHash}</p>
+        <div className="mb-4 p-2 bg-gray-900/70 rounded-md border border-gray-700">
+          <p className="font-semibold text-gray-300">IPFS Hash:</p>
+          <p className="text-sm break-all text-indigo-300">{ipfsHash}</p>
         </div>
       )}
       
       {/* Camera test result */}
       {cameraTestResult && (
         <div className={`mb-4 p-2 rounded-md ${
-          cameraTestResult === 'success' ? 'bg-green-100' : 
-          cameraTestResult === 'warning' ? 'bg-yellow-100' : 'bg-red-100'
+          cameraTestResult === 'success' ? 'bg-green-900/50' : 
+          cameraTestResult === 'warning' ? 'bg-amber-900/50' : 'bg-red-900/50'
         }`}>
           <div className="flex items-center">
             {cameraTestResult === 'success' ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
+              <CheckCircleIcon className="h-5 w-5 text-green-400 mr-2" />
             ) : (
               <ExclamationTriangleIcon className={`h-5 w-5 ${
-                cameraTestResult === 'warning' ? 'text-yellow-500' : 'text-red-500'
+                cameraTestResult === 'warning' ? 'text-amber-400' : 'text-red-400'
               } mr-2`} />
             )}
             <p className={
-              cameraTestResult === 'success' ? 'text-green-500' : 
-              cameraTestResult === 'warning' ? 'text-yellow-500' : 'text-red-500'
+              cameraTestResult === 'success' ? 'text-green-400' : 
+              cameraTestResult === 'warning' ? 'text-amber-400' : 'text-red-400'
             }>
               {cameraTestMessage}
             </p>
@@ -454,10 +456,10 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
       {/* Toast notification */}
       {toastMessage && (
         <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg max-w-sm z-50 ${
-          toastMessage.type === 'success' ? 'bg-green-100 text-green-800' : 
-          toastMessage.type === 'error' ? 'bg-red-100 text-red-800' : 
-          'bg-yellow-100 text-yellow-800'
-        }`}>
+          toastMessage.type === 'success' ? 'bg-green-900/90 text-green-300' : 
+          toastMessage.type === 'error' ? 'bg-red-900/90 text-red-300' : 
+          'bg-amber-900/90 text-amber-300'
+        } backdrop-blur-sm`}>
           <div className="flex items-center">
             {toastMessage.type === 'success' ? (
               <CheckCircleIcon className="h-5 w-5 mr-2" />
@@ -477,7 +479,7 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
         {!isCameraOn ? (
           hasWallet && (
             <button 
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md w-full"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md w-full"
               onClick={turnOnCamera}
             >
               Turn On Camera
@@ -486,20 +488,20 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
         ) : !capturedImage ? (
           <>
             <button 
-              className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md flex-1"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md flex-1"
               onClick={turnOffCamera}
             >
               Turn Off Camera
             </button>
             <button 
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md flex-1 disabled:bg-blue-300 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium py-2 px-4 rounded-md flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={captureImage} 
               disabled={modelLoading}
             >
               Capture Face
             </button>
             <button 
-              className="bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-4 rounded-md flex-1 disabled:bg-indigo-300 disabled:cursor-not-allowed"
+              className="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={testCamera}
               disabled={isCameraTesting || modelLoading}
             >
@@ -509,7 +511,7 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
         ) : (
           <>
             <button 
-              className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-md flex-1 min-w-[120px]"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md flex-1 min-w-[120px]"
               onClick={resetCapture}
             >
               Retake
@@ -517,7 +519,7 @@ export const FaceProcessor: React.FC<FaceProcessorProps> = ({
             
             {hasWallet && hash && !ipfsHash && (
               <button 
-                className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md flex-1 min-w-[120px] disabled:bg-green-300 disabled:cursor-not-allowed"
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium py-2 px-4 rounded-md flex-1 min-w-[120px] disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={registerOnline}
                 disabled={isUploading || !faceEmbedding}
               >

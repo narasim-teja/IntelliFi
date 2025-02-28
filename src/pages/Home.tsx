@@ -140,16 +140,40 @@ export default function Home() {
   return (
     <div className="w-full">
       {/* Hero section */}
-      <div className="w-full bg-gradient-to-b from-gray-50 to-white py-12 sm:py-16">
-        <div className="mx-auto max-w-2xl text-center px-4">
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Secure Identity Verification
-          </h1>
-          <p className="mt-6 text-lg leading-8 text-gray-600">
-            Register your identity securely using our decentralized facial authentication system. Your biometric data remains private and is processed locally.
-          </p>
+      <div className="w-full bg-gradient-to-b from-gray-800 via-gray-900 to-gray-900 py-20 sm:py-28 relative overflow-hidden">
+        {/* Hero background decorative elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/4 w-1/2 h-1/2 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 blur-3xl rounded-full transform -translate-y-1/2"></div>
+          <div className="absolute bottom-0 right-0 w-1/3 h-1/3 bg-gradient-to-tl from-blue-500/10 to-indigo-500/10 blur-3xl rounded-full"></div>
+        </div>
+        
+        <div className="mx-auto max-w-3xl text-center px-4 relative z-10">
+          <div className="relative">
+            {/* Glow effect behind the text */}
+            <div className="absolute inset-0 blur-2xl opacity-30 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transform scale-110"></div>
+            
+
+            
+            <h1 className="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight relative">
+              <span className="inline-block animate-fade-in bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-sm">
+                IntelliFi
+              </span>
+            </h1>
+          </div>
+          
+          <div className="mt-8 relative">
+            {/* Subtle line separator */}
+            <div className="w-24 h-1 bg-gradient-to-r from-indigo-500/50 to-purple-500/50 rounded-full mx-auto mb-6"></div>
+            
+            <p className="text-2xl sm:text-3xl font-medium">
+              <span className="inline-block animate-slide-up bg-gradient-to-r from-indigo-300 to-indigo-400 bg-clip-text text-transparent italic tracking-wide">
+                Face the Future
+              </span>
+            </p>
+          </div>
+          
           {!user && (
-            <div className="mt-8">
+            <div className="mt-10">
               <DynamicWidget />
             </div>
           )}
@@ -157,8 +181,14 @@ export default function Home() {
       </div>
 
       {/* Main content */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 relative">
+        {/* Content background decorative elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+          <div className="absolute top-1/4 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-600/30 to-transparent blur-3xl rounded-full"></div>
+          <div className="absolute bottom-1/3 left-0 w-72 h-72 bg-gradient-to-tr from-purple-600/30 to-transparent blur-3xl rounded-full"></div>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start relative z-10">
           {/* Face Processor Section */}
           <div className="space-y-4">
             <FaceProcessor 
@@ -169,17 +199,17 @@ export default function Home() {
             
             {/* Uniqueness Check Button */}
             {faceHash && ipfsHash && !isRegistered && !uniquenessResult && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <p className="text-gray-700 mb-4">
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md border border-gray-700/70 p-6">
+                <p className="text-gray-300 mb-4">
                   Ready to register your face on the blockchain? Click below to check uniqueness and register.
                 </p>
                 <button 
                   className={`w-full rounded-lg px-4 py-3 text-base font-medium transition-colors ${
                     !user
-                      ? "bg-gray-400 cursor-not-allowed"
+                      ? "bg-gray-600 cursor-not-allowed"
                       : isCheckingUniqueness || isRegistering
-                        ? "bg-indigo-400 cursor-wait"
-                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                        ? "bg-indigo-500 cursor-wait"
+                        : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white"
                   }`}
                   onClick={handleRegisterOnChain}
                   disabled={!user || isCheckingUniqueness || isRegistering || !ipfsHash || !faceEmbedding}
@@ -198,31 +228,31 @@ export default function Home() {
             
             {/* Uniqueness Check Results */}
             {uniquenessResult && !isRegistered && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md border border-gray-700/70 p-6">
                 {uniquenessResult.isUnique ? (
-                  <div className="p-4 bg-green-50 rounded-lg">
+                  <div className="p-4 bg-green-900/50 rounded-lg backdrop-blur-sm">
                     <div className="flex items-center">
-                      <CheckCircleIcon className="h-6 w-6 text-green-600" />
-                      <p className="ml-2 text-green-700 font-medium">Face is Unique!</p>
+                      <CheckCircleIcon className="h-6 w-6 text-green-400" />
+                      <p className="ml-2 text-green-400 font-medium">Face is Unique!</p>
                     </div>
-                    <p className="mt-2 text-sm text-gray-600">
+                    <p className="mt-2 text-sm text-gray-300">
                       This face hasn't been registered by any other wallet. You can proceed with registration.
                     </p>
                   </div>
                 ) : (
-                  <div className="p-4 bg-amber-50 rounded-lg">
+                  <div className="p-4 bg-amber-900/50 rounded-lg backdrop-blur-sm">
                     <div className="flex items-center">
-                      <ExclamationTriangleIcon className="h-6 w-6 text-amber-600" />
-                      <p className="ml-2 text-amber-700 font-medium">Face Already Registered</p>
+                      <ExclamationTriangleIcon className="h-6 w-6 text-amber-400" />
+                      <p className="ml-2 text-amber-400 font-medium">Face Already Registered</p>
                     </div>
-                    <p className="mt-2 text-sm text-gray-600">
+                    <p className="mt-2 text-sm text-gray-300">
                       This face appears to be already registered by another wallet.
                       {uniquenessResult.similarity !== null && (
                         <span> Similarity score: {(uniquenessResult.similarity * 100).toFixed(1)}%</span>
                       )}
                     </p>
                     
-                    <p className="mt-3 text-sm text-amber-700">
+                    <p className="mt-3 text-sm text-amber-400">
                       To prevent identity fraud, you cannot register this face. Please try with a different face.
                     </p>
                   </div>
@@ -233,10 +263,10 @@ export default function Home() {
                   <button 
                     className={`w-full mt-4 rounded-lg px-4 py-3 text-base font-medium transition-colors ${
                       !user || !ipfsHash
-                        ? "bg-gray-400 cursor-not-allowed"
+                        ? "bg-gray-600 cursor-not-allowed"
                         : isRegistering
-                          ? "bg-indigo-400 cursor-wait"
-                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                          ? "bg-indigo-500 cursor-wait"
+                          : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white"
                     }`}
                     onClick={handleRegisterOnChain}
                     disabled={!user || isRegistering || !ipfsHash}
@@ -253,7 +283,7 @@ export default function Home() {
                 )}
                 
                 {contractError && (
-                  <div className="mt-4 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+                  <div className="mt-4 p-3 bg-red-900/50 rounded-lg text-red-400 text-sm backdrop-blur-sm">
                     {contractError}
                   </div>
                 )}
@@ -262,13 +292,13 @@ export default function Home() {
 
             {/* Registration Success */}
             {isRegistered && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-4">
-                <div className="p-4 bg-green-50 rounded-lg">
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-md border border-gray-700/70 p-6 mt-4">
+                <div className="p-4 bg-green-900/50 rounded-lg backdrop-blur-sm">
                   <div className="flex items-center">
-                    <CheckCircleIcon className="h-6 w-6 text-green-600" />
-                    <p className="ml-2 text-green-700 font-medium">Registration Successful!</p>
+                    <CheckCircleIcon className="h-6 w-6 text-green-400" />
+                    <p className="ml-2 text-green-400 font-medium">Registration Successful!</p>
                   </div>
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-gray-300">
                     Your face has been successfully registered on the blockchain.
                     {registrationTimestamp && (
                       <span> Registered on: {formatTimestamp(registrationTimestamp)}</span>
@@ -277,45 +307,43 @@ export default function Home() {
                 </div>
                 
                 <button 
-                  className="w-full mt-4 rounded-lg px-4 py-3 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full mt-4 rounded-lg px-4 py-3 text-base font-medium bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white"
                   onClick={resetIdentity}
                 >
                   Start Over
                 </button>
               </div>
             )}
-            
-           
           </div>
 
           {/* Security Information */}
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-800/80 backdrop-blur-sm p-6 rounded-lg shadow-md border border-gray-700/70 transition-all duration-300 hover:border-indigo-700/50">
               <div className="flex items-center">
-                <ShieldCheckIcon className="h-6 w-6 text-indigo-600" />
-                <h3 className="ml-2 text-lg font-medium text-gray-900">Privacy First</h3>
+                <ShieldCheckIcon className="h-6 w-6 text-indigo-400" />
+                <h3 className="ml-2 text-lg font-medium text-white">Privacy First</h3>
               </div>
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-gray-300">
                 Your facial data is processed entirely on your device. No biometric information leaves your browser, ensuring maximum privacy and security.
               </p>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-800/80 backdrop-blur-sm p-6 rounded-lg shadow-md border border-gray-700/70 transition-all duration-300 hover:border-indigo-700/50">
               <div className="flex items-center">
-                <LockClosedIcon className="h-6 w-6 text-indigo-600" />
-                <h3 className="ml-2 text-lg font-medium text-gray-900">Blockchain Secured</h3>
+                <LockClosedIcon className="h-6 w-6 text-indigo-400" />
+                <h3 className="ml-2 text-lg font-medium text-white">Blockchain Secured</h3>
               </div>
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-gray-300">
                 Your identity verification is registered directly on the Base Sepolia blockchain, creating an immutable record of your verification that can be used for secure authentication.
               </p>
             </div>
             
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-gray-800/80 backdrop-blur-sm p-6 rounded-lg shadow-md border border-gray-700/70 transition-all duration-300 hover:border-amber-700/50">
               <div className="flex items-center">
-                <ExclamationTriangleIcon className="h-6 w-6 text-amber-600" />
-                <h3 className="ml-2 text-lg font-medium text-gray-900">Sybil Resistance</h3>
+                <ExclamationTriangleIcon className="h-6 w-6 text-amber-400" />
+                <h3 className="ml-2 text-lg font-medium text-white">Sybil Resistance</h3>
               </div>
-              <p className="mt-2 text-gray-600">
+              <p className="mt-2 text-gray-300">
                 Our system prevents the same face from being registered with multiple wallets. Before registration, we check if your face is already associated with another wallet to prevent identity fraud.
               </p>
             </div>
