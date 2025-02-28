@@ -61,8 +61,8 @@ Check out our demo video to see IntelliFi in action:
 
 ```bash
 # Clone the repository
-git clone https://github.com/narasim-teja/Ross.git
-cd Ross/frontend
+git clone https://github.com/narasim-teja/IntelliFi.git
+cd IntelliFi/frontend
 
 # Install dependencies
 npm install
